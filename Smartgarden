@@ -1,0 +1,133 @@
+//librerías
+//dht
+#include <DHT.h>
+#include <DHT_U.h>
+#include <Adafruit_Sensor.h>
+//l2c
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+//Alarma sobre el nivel del agua
+#define trig 7
+#define echo 6
+#define buzzer 12
+
+//DTH11
+#define DHTPIN 3 //PIN al que se conectará el sensor, lo cambiaré luego.
+#define DHTTYPE DHT11 //tipo de sensor dht
+DHT dht(DHTPIN, DHTTYPE); //iniciar sensor
+int humedadA;
+int temperaturaA; 
+
+//sensor sistema de riego;
+int suelo = A0; //pin al que ira conectado el data del sensor de humedad de la tierra.
+const int LDRpin= A3; // pin análogico al que ira conectado el sensor de luz
+
+//bomba de agua
+int relay = 2;
+byte cara[8] = {
+B00000,
+B10001,
+B00000,
+B00000,
+B10001,
+B01110,
+B00000,
+};
+void setup() {
+  // Inicializar el LCD
+  lcd.init();
+  //Encender la luz de fondo.
+  lcd.backlight();
+  lcd.createChar (6,cara);
+  // Inicializamos comunicación serie
+  Serial.begin(9600);
+  // Comenzamos el sensor DHT
+  dht.begin();
+  //bomba y sensores suelo e intensidad de luz.
+  pinMode(relay, OUTPUT);
+  pinMode(suelo,INPUT);
+  pinMode(LDRpin, INPUT);
+  
+  //Alarma nivel del agua.
+  pinMode(trig,OUTPUT);
+  pinMode(echo,INPUT);
+  pinMode(buzzer,OUTPUT);
+
+}
+
+void loop() {
+  
+  //lectura de datos de los sensores.
+    //sensor del ambiente
+   humedadA = dht.readHumidity();
+   temperaturaA = dht.readTemperature();
+   //humedad del suelo
+  int humedadS = analogRead(suelo);
+    //intensidad de luz
+  int luzV = analogRead(LDRpin); 
+  int Luz=(100.0*luzV)/1024;
+  // lectura sensor intensidad de luz.
+    
+    //datos lcd
+  lcd.init(); //Inicializamos el LCD
+  lcd.backlight(); //Activamos la luz de fondo
+  lcd.clear();//blanqueamos la pantalla
+  lcd.setCursor(0,0);
+  lcd.print("DHT: ");
+  lcd.print(temperaturaA);
+  lcd.print("C/");
+  lcd.print(humedadA);
+  lcd.print("%");
+  lcd.setCursor(0,1);
+  lcd.print("Luz:");
+  lcd.print(Luz);
+  lcd.print(" Hs:");
+  lcd.print(humedadS);  
+  
+    Serial.print("HS");  Serial.print(humedadS);
+    Serial.print("Luz"); Serial.print(Luz);
+    Serial.print("temperaturaA");Serial.print(temperaturaA);
+ 
+    
+  
+
+  //bomba
+  if(humedadS>=700 && Luz<30 && temperaturaA==32){
+    digitalWrite(relay,LOW);
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Regando ");
+    lcd.write (byte (6));
+
+
+
+   delay(2000);}
+     else{digitalWrite(relay, HIGH);}
+   
+  
+  //Sensor proximidad, lectura.
+  long duration, distance; 
+  digitalWrite(trig,LOW);
+  delay(2);
+   digitalWrite(trig,HIGH);
+  delay(2);
+   digitalWrite(trig,LOW);
+  duration = pulseIn(echo, HIGH);
+  distance = (duration/2)*0.0343;
+    
+  if(distance==12) //verifica si el nivel del agua se encuentra a una distancia especifica//esto es lo único que falta ajustar.
+  {tone(buzzer, 1000);
+  lcd.setCursor(0,0);
+  lcd.print("Nivel agua bajo");
+  lcd.setCursor(0, 1); //Posicion: columna cero fila cero
+  lcd.print("Rellenar tanque");
+  delay (2000);
+  lcd.clear();//blanqueamos la pantalla
+  }
+  else 
+  {
+  noTone(buzzer);}
+  
+}
